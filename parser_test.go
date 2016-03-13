@@ -239,7 +239,7 @@ const testHTML = `
 			</div>
 			<div class="meta">
 				<div class="date">11/10</div>
-				<div class="author">fkc</div>
+				<div class="author">abc</div>
 			</div>
 		</div>
 
@@ -274,41 +274,82 @@ const testHTML = `
 `
 
 func TestRuleParsing(t *testing.T) {
-	t.Log("going on single rules then go multi-rules combination.")
 	root, _ := html.Parse(strings.NewReader(testHTML))
 
-	parseRule := Rule{"失望", ""}
-	expectResult := Result{
-		"https://www.ptt.cc/bbs/LoL/M.1457622551.A.650.html",
-		"[閒聊] 對於XG挺失望的",
-		"iamfenixsc",
-		"3/10",
+	parseRules := []Rule{
+		{"失望", ""},
+		{"電競", ""},
+		{"電競", "LMSPostBot"},
+	}
+	expectResults := [][]Result{
+		{
+			{
+				"https://www.ptt.cc/bbs/LoL/M.1457622551.A.650.html",
+				"[閒聊] 對於XG挺失望的",
+				"iamfenixsc",
+				"3/10",
+			},
+		},
+		{
+			{
+				"https://www.ptt.cc/bbs/LoL/M.1447000166.A.74F.html",
+				"[電競] 近期賽事",
+				"fkc",
+				"11/09",
+			},
+			{
+				"https://www.ptt.cc/bbs/LoL/M.1447000199.A.74F.html",
+				"[電競] 近期賽事",
+				"abc",
+				"11/10",
+			},
+			{
+				"https://www.ptt.cc/bbs/LoL/M.1457605826.A.732.html",
+				"[電競] 2016 LMS Spring W7D1",
+				"LMSPostBot",
+				"3/10",
+			},
+		},
+		{
+			{
+				"https://www.ptt.cc/bbs/LoL/M.1457605826.A.732.html",
+				"[電競] 2016 LMS Spring W7D1",
+				"LMSPostBot",
+				"3/10",
+			},
+		},
 	}
 
-	if reciveResults, err := parseRule.Parsing(root, strings.Contains); err == nil {
-		if len(reciveResults) == 0 {
-			t.Errorf("Expect find 1 result but found 0")
-		} else {
-			for _, result := range reciveResults {
-				if result.Title != expectResult.Title {
-					t.Errorf("Expected title:%s, but got:%s", expectResult.Title, result.Title)
-				}
+	for i := 0; i < len(parseRules); i++ {
+		parseRule := parseRules[i]
 
-				if result.URL != expectResult.URL {
-					t.Errorf("Expected URL:%s, but got:%s", expectResult.URL, result.URL)
-				}
+		if reciveResults, err := parseRule.Parsing(root, strings.Contains); err == nil {
+			if len(reciveResults) == 0 {
+				t.Errorf("Expect at least 1 reciveResult but found 0")
+			} else {
+				for j := 0; j < len(reciveResults); j++ {
+					reciveResult := reciveResults[j]
+					expectResult := expectResults[i][j]
 
-				if result.Author != expectResult.Author {
-					t.Errorf("Expected Author:%s, but got:%s", expectResult.Author, result.Author)
-				}
+					if reciveResult.Title != expectResult.Title {
+						t.Errorf("Expected title:%s, but got:%s", expectResult.Title, reciveResult.Title)
+					}
 
-				if result.Date != expectResult.Date {
-					t.Errorf("Expected Date:%s, but got:%s", expectResult.Date, result.Date)
+					if reciveResult.URL != expectResult.URL {
+						t.Errorf("Expected URL:%s, but got:%s", expectResult.URL, reciveResult.URL)
+					}
+
+					if reciveResult.Author != expectResult.Author {
+						t.Errorf("Expected Author:%s, but got:%s", expectResult.Author, reciveResult.Author)
+					}
+
+					if reciveResult.Date != expectResult.Date {
+						t.Errorf("Expected Date:%s, but got:%s", expectResult.Date, reciveResult.Date)
+					}
 				}
 			}
+		} else {
+			t.Errorf("error: %v", err)
 		}
-	} else {
-		t.Errorf("error: %v", err)
 	}
-
 }
