@@ -71,31 +71,20 @@ func (rule *Rule) Parsing(root *html.Node, strMatcher StrMatcher) ([]*Result, er
 	for _, article := range articles {
 		result := new(Result)
 
-		title, ok := scrape.Find(article, scrape.ByTag(atom.A))
+		title, url, ok := rule.compareTitle(article, strMatcher)
 		if !ok {
-			// post has been delete
 			continue
 		}
 
-		result.Title = scrape.Text(title)
+		result.Title = title
+		result.URL = url
 
-		// checking is this parsing title mathces the rule
-		if !strMatcher(result.Title, rule.TitleKey) {
-			continue
-		}
-
-		author, ok := scrape.Find(article, scrape.ByClass("author"))
+		author, ok := rule.compareAuthor(article, strings.EqualFold)
 		if !ok {
-			// this should not be happend, unless the ptt server done
 			continue
 		}
 
-		result.Author = scrape.Text(author)
-		if rule.Author != "" && !strings.EqualFold(rule.Author, result.Author) {
-			continue
-		}
-
-		result.URL = pttBaseURL + scrape.Attr(title, "href")
+		result.Author = author
 
 		date, ok := scrape.Find(article, scrape.ByClass("date"))
 		if !ok {
@@ -108,4 +97,41 @@ func (rule *Rule) Parsing(root *html.Node, strMatcher StrMatcher) ([]*Result, er
 	}
 
 	return results, nil
+}
+
+// compareTitle returns true if the parsing title is obay the strMatcher
+func (rule *Rule) compareTitle(article *html.Node, strMatcher StrMatcher) (title string, url string, ok bool) {
+	t, ok := scrape.Find(article, scrape.ByTag(atom.A))
+	if !ok {
+		// post has been delete
+		return "", "", false
+	}
+
+	title = scrape.Text(t)
+
+	// checking is this parsing title mathces the rule
+	if !strMatcher(title, rule.TitleKey) {
+		return "", "", false
+	}
+
+	url = pttBaseURL + scrape.Attr(t, "href")
+
+	return title, url, true
+}
+
+// compareAuthor returns true if the parsing author is obay the strMatcher
+func (rule *Rule) compareAuthor(article *html.Node, strMatcher StrMatcher) (author string, ok bool) {
+	a, ok := scrape.Find(article, scrape.ByClass("author"))
+	if !ok {
+		// this should not be happend, unless the ptt server done
+		return "", false
+	}
+
+	author = scrape.Text(a)
+
+	if rule.Author != "" && !strMatcher(author, rule.Author) {
+		return "", false
+	}
+
+	return author, true
 }
