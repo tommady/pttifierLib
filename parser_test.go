@@ -323,33 +323,30 @@ func TestRuleParsing(t *testing.T) {
 	for i := 0; i < len(parseRules); i++ {
 		parseRule := parseRules[i]
 
-		if reciveResults, err := parseRule.Parsing(root, strings.Contains); err == nil {
-			if len(reciveResults) == 0 {
-				t.Errorf("Expect at least 1 reciveResult but found 0")
-			} else {
-				for j := 0; j < len(reciveResults); j++ {
-					reciveResult := reciveResults[j]
-					expectResult := expectResults[i][j]
+		reciveResults := parseRule.Parsing(root, strings.Contains)
+		if len(reciveResults) == 0 {
+			t.Errorf("Expect at least 1 reciveResult but found 0")
+		} else {
+			for j := 0; j < len(reciveResults); j++ {
+				reciveResult := reciveResults[j]
+				expectResult := expectResults[i][j]
 
-					if reciveResult.Title != expectResult.Title {
-						t.Errorf("Expected title:%s, but got:%s", expectResult.Title, reciveResult.Title)
-					}
+				if reciveResult.Title != expectResult.Title {
+					t.Errorf("Expected title:%s, but got:%s", expectResult.Title, reciveResult.Title)
+				}
 
-					if reciveResult.URL != expectResult.URL {
-						t.Errorf("Expected URL:%s, but got:%s", expectResult.URL, reciveResult.URL)
-					}
+				if reciveResult.URL != expectResult.URL {
+					t.Errorf("Expected URL:%s, but got:%s", expectResult.URL, reciveResult.URL)
+				}
 
-					if reciveResult.Author != expectResult.Author {
-						t.Errorf("Expected Author:%s, but got:%s", expectResult.Author, reciveResult.Author)
-					}
+				if reciveResult.Author != expectResult.Author {
+					t.Errorf("Expected Author:%s, but got:%s", expectResult.Author, reciveResult.Author)
+				}
 
-					if reciveResult.Date != expectResult.Date {
-						t.Errorf("Expected Date:%s, but got:%s", expectResult.Date, reciveResult.Date)
-					}
+				if reciveResult.Date != expectResult.Date {
+					t.Errorf("Expected Date:%s, but got:%s", expectResult.Date, reciveResult.Date)
 				}
 			}
-		} else {
-			t.Errorf("error: %v", err)
 		}
 	}
 }

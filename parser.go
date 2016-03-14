@@ -37,6 +37,10 @@ const (
 	defaultParsingPage = "/index"
 )
 
+var (
+	skipThisParse bool
+)
+
 // GetRootNode returns the root node of ginving Board and board page number,
 // if want to start from default index then pageNum should be NULL ("")
 func GetRootNode(targetBoard, pageNum string) (*html.Node, error) {
@@ -64,74 +68,118 @@ func GetRootNode(targetBoard, pageNum string) (*html.Node, error) {
 }
 
 // Parsing returns the result of extracting ptt web page by given rule and page.
-func (rule *Rule) Parsing(root *html.Node, strMatcher StrMatcher) ([]*Result, error) {
+func (rule *Rule) Parsing(root *html.Node, titleMatcher StrMatcher) (results []*Result) {
 	articles := scrape.FindAll(root, scrape.ByClass("r-ent"))
 
-	results := []*Result{}
 	for _, article := range articles {
-		result := new(Result)
+		skipThisParse = false
 
-		title, url, ok := rule.compareTitle(article, strMatcher)
-		if !ok {
+		title := getTitle(article)
+		rule.compareTitle(title, titleMatcher)
+
+		author := getAuthor(article)
+		rule.compareAuthor(author, strings.EqualFold)
+
+		url := getURL(article)
+		date := getDate(article)
+
+		if skipThisParse {
 			continue
 		}
 
+		result := new(Result)
 		result.Title = title
 		result.URL = url
-
-		author, ok := rule.compareAuthor(article, strings.EqualFold)
-		if !ok {
-			continue
-		}
-
 		result.Author = author
-
-		date, ok := scrape.Find(article, scrape.ByClass("date"))
-		if !ok {
-			// this should not be happend, unless the ptt server done
-			continue
-		}
-
-		result.Date = scrape.Text(date)
+		result.Date = date
 		results = append(results, result)
 	}
 
-	return results, nil
+	return results
 }
 
 // compareTitle returns true if the parsing title is obay the strMatcher
-func (rule *Rule) compareTitle(article *html.Node, strMatcher StrMatcher) (title string, url string, ok bool) {
-	t, ok := scrape.Find(article, scrape.ByTag(atom.A))
-	if !ok {
-		// post has been delete
-		return "", "", false
+func (rule *Rule) compareTitle(title string, strMatcher StrMatcher) {
+	if !skipThisParse {
+		if !strMatcher(title, rule.TitleKey) {
+			skipThisParse = true
+		}
 	}
-
-	title = scrape.Text(t)
-
-	// checking is this parsing title mathces the rule
-	if !strMatcher(title, rule.TitleKey) {
-		return "", "", false
-	}
-
-	url = pttBaseURL + scrape.Attr(t, "href")
-
-	return title, url, true
 }
 
 // compareAuthor returns true if the parsing author is obay the strMatcher
-func (rule *Rule) compareAuthor(article *html.Node, strMatcher StrMatcher) (author string, ok bool) {
-	a, ok := scrape.Find(article, scrape.ByClass("author"))
-	if !ok {
-		// this should not be happend, unless the ptt server done
-		return "", false
+func (rule *Rule) compareAuthor(author string, strMatcher StrMatcher) {
+	if !skipThisParse {
+		if rule.Author != "" && !strMatcher(author, rule.Author) {
+			skipThisParse = true
+		}
+	}
+}
+
+// getTitle returns the post published title
+func getTitle(article *html.Node) (title string) {
+	if !skipThisParse {
+		t, ok := scrape.Find(article, scrape.ByTag(atom.A))
+		if !ok {
+			// post has been deleted
+			skipThisParse = true
+			return
+		}
+
+		title = scrape.Text(t)
+		return title
 	}
 
-	author = scrape.Text(a)
+	return
+}
 
-	if rule.Author != "" && !strMatcher(author, rule.Author) {
-		return "", false
+// getURL returns the post published url link
+func getURL(article *html.Node) (url string) {
+	if !skipThisParse {
+		t, ok := scrape.Find(article, scrape.ByTag(atom.A))
+		if !ok {
+			// post has been deleted
+			skipThisParse = true
+			return
+		}
+
+		url = pttBaseURL + scrape.Attr(t, "href")
+		return url
 	}
 
-	return author, true
+	return
+}
+
+// getAuthor returns the post published author
+func getAuthor(article *html.Node) (author string) {
+	if !skipThisParse {
+		a, ok := scrape.Find(article, scrape.ByClass("author"))
+		if !ok {
+			// this should not be happend, unless the ptt server suddenly down
+			skipThisParse = true
+			return
+		}
+
+		author = scrape.Text(a)
+		return author
+	}
+
+	return
+}
+
+// getDate returns the post published day
+func getDate(article *html.Node) (date string) {
+	if !skipThisParse {
+		d, ok := scrape.Find(article, scrape.ByClass("date"))
+		if !ok {
+			// this should not be happend, unless the ptt server suddenly down
+			skipThisParse = true
+			return
+		}
+
+		date = scrape.Text(d)
+		return date
+	}
+
+	return
 }
