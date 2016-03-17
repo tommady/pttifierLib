@@ -1,6 +1,7 @@
 package pttifierLib
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -44,7 +45,7 @@ var (
 // GetRootNode returns the root node of ginving Board and board page number,
 // if want to start from default index then pageNum should be NULL ("")
 func GetRootNode(targetBoard, pageNum string) (*html.Node, error) {
-	targetURL := pttBaseCrawlingURL + targetBoard + defaultParsingPage + pageNum
+	targetURL := pttBaseCrawlingURL + targetBoard + defaultParsingPage + pageNum + ".html"
 	req, err := http.NewRequest("GET", targetURL, nil)
 	if err != nil {
 		return nil, ReportError("failed on new request", err)
@@ -67,8 +68,77 @@ func GetRootNode(targetBoard, pageNum string) (*html.Node, error) {
 	return root, nil
 }
 
-// Parsing returns the result of extracting ptt web page by given rule and page.
+// GetActionBarNode returns <div class="action-bar"> from givin root node
+func GetActionBarNode(root *html.Node) (*html.Node, error) {
+	if root == nil {
+		return nil, ReportError("Get nil root, can not extracts out Action Bar Node", nil)
+	}
+
+	n, ok := scrape.Find(root, scrape.ByClass("action-bar"))
+	if !ok {
+		return nil, ReportError("Can not find Action Bar Node from givin node", nil)
+	}
+
+	return n, nil
+}
+
+// GetRListNode returns <div class="r-list-container bbs-screen"> from givin root node
+func GetRListNode(root *html.Node) (*html.Node, error) {
+	if root == nil {
+		return nil, ReportError("Get nil root, can not extracts out R List Node", nil)
+	}
+
+	n, ok := scrape.Find(root, scrape.ByClass("bbs-screen"))
+	if !ok {
+		return nil, ReportError("Can not find R List Node from givin node", nil)
+	}
+
+	return n, nil
+}
+
+// RemoveBottumAnnouncements returns the whole html tree without bottum announcements if contains,
+func RemoveBottumAnnouncements(root *html.Node) (err error) {
+	if root == nil {
+		return ReportError("Gvin root is nil", nil)
+	}
+
+	n, ok := scrape.Find(root, scrape.ByClass("r-list-sep"))
+	if !ok {
+		// gvin root is not contain botum announcements, no need to bother with it
+		return nil
+	}
+
+	// WARNING: if givin root node is not <div class="r-list-container bbs-screen"> or returns by
+	// function GetRListNode, may causes panic
+	defer func() {
+		if r := recover(); r != nil {
+			msg := "root node is not <r-list-container bbs-screen> node"
+			switch x := r.(type) {
+			case string:
+				err = ReportError(msg, errors.New(x))
+			case error:
+				err = ReportError(msg, x)
+			default:
+				err = ReportError(msg, errors.New("Unknown panic"))
+			}
+		}
+	}()
+
+	var tmpNext *html.Node
+	for c := n; c != nil; c = tmpNext {
+		tmpNext = c.NextSibling
+		root.RemoveChild(c)
+	}
+
+	return nil
+}
+
+// Parsing returns the result of extracting ptt web page by given rule and page
 func (rule *Rule) Parsing(root *html.Node, titleMatcher StrMatcher) (results []*Result) {
+	if root == nil {
+		return
+	}
+
 	articles := scrape.FindAll(root, scrape.ByClass("r-ent"))
 
 	for _, article := range articles {
@@ -98,16 +168,18 @@ func (rule *Rule) Parsing(root *html.Node, titleMatcher StrMatcher) (results []*
 	return results
 }
 
-// compareTitle returns true if the parsing title is obay the strMatcher
+// compareTitle returns true if the parsing title is obay the strMatcher,
+// if rule's TitleKey == "" means a post with any title will be accepted as result
 func (rule *Rule) compareTitle(title string, strMatcher StrMatcher) {
 	if !skipThisParse {
-		if !strMatcher(title, rule.TitleKey) {
+		if rule.TitleKey != "" && !strMatcher(title, rule.TitleKey) {
 			skipThisParse = true
 		}
 	}
 }
 
-// compareAuthor returns true if the parsing author is obay the strMatcher
+// compareAuthor returns true if the parsing author is obay the strMatcher,
+// if rule's Author == "" means a post with any author will be accepted as result
 func (rule *Rule) compareAuthor(author string, strMatcher StrMatcher) {
 	if !skipThisParse {
 		if rule.Author != "" && !strMatcher(author, rule.Author) {
@@ -127,7 +199,6 @@ func getTitle(article *html.Node) (title string) {
 		}
 
 		title = scrape.Text(t)
-		return title
 	}
 
 	return
@@ -144,7 +215,6 @@ func getURL(article *html.Node) (url string) {
 		}
 
 		url = pttBaseURL + scrape.Attr(t, "href")
-		return url
 	}
 
 	return
@@ -161,7 +231,6 @@ func getAuthor(article *html.Node) (author string) {
 		}
 
 		author = scrape.Text(a)
-		return author
 	}
 
 	return
@@ -178,7 +247,6 @@ func getDate(article *html.Node) (date string) {
 		}
 
 		date = scrape.Text(d)
-		return date
 	}
 
 	return
