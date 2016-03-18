@@ -190,10 +190,10 @@ func TestRuleParsing(t *testing.T) {
 	root, _ := html.Parse(strings.NewReader(testParsingHTML))
 
 	parseRules := []Rule{
-		{"失望", ""},
-		{"電競", ""},
-		{"電競", "LMSPostBot"},
-		{"", "[彩券]"},
+		{"失望", "", strings.Contains, strings.EqualFold},
+		{"電競", "", strings.Contains, strings.EqualFold},
+		{"電競", "LMSPostBot", strings.Contains, strings.EqualFold},
+		{"", "[彩券]", strings.Contains, strings.EqualFold},
 	}
 	expectResults := [][]Result{
 		{
@@ -249,7 +249,7 @@ func TestRuleParsing(t *testing.T) {
 	}
 
 	for i := 0; i < len(parseRules); i++ {
-		reciveResults := parseRules[i].Parsing(root, strings.Contains)
+		reciveResults := parseRules[i].Parsing(root)
 
 		if len(reciveResults) == 0 {
 			t.Errorf("Expect at least 1 reciveResult but found 0")
@@ -278,70 +278,93 @@ func TestRuleParsing(t *testing.T) {
 	}
 }
 
+func TestGetPrevNextPageLinkAndGetActionBarNode(t *testing.T) {
+	root, _ := html.Parse(strings.NewReader(testParsingHTML))
+	expectPrevLink := "https://www.ptt.cc/bbs/LoL/index4380.html"
+	expectNextLink := ""
+
+	if actionBar, err := GetActionBarNode(root); err != nil {
+		t.Errorf("Expect nil error from GetActionBarNode, but got %v", err)
+	} else {
+		recivePrevLink, reciveNextLink, err := GetPrevNextPageLink(actionBar)
+		if err != nil {
+			t.Errorf("Expect nil error from GetPrevNextPageLink, but got %v", err)
+		} else {
+			if recivePrevLink != expectPrevLink {
+				t.Errorf("Expect '%s', but got '%s'", expectPrevLink, recivePrevLink)
+			}
+
+			if reciveNextLink != expectNextLink {
+				t.Errorf("Expect '%s', but got '%s'", expectNextLink, reciveNextLink)
+			}
+		}
+	}
+}
+
 func TestRemoveBottumAnnouncementsAndGetRListNode(t *testing.T) {
 	root, _ := html.Parse(strings.NewReader(testParsingHTML))
 
 	if err := RemoveBottumAnnouncements(root); err == nil {
 		t.Errorf("Expected an panic from Remove Child Node but got nil")
-	}
-
-	if bbsScreen, err := GetRListNode(root); err != nil {
-		t.Errorf("Expected R List node, but got nil")
 	} else {
-		rule := Rule{"", ""}
-		expects := []Result{
-			{
-				"https://www.ptt.cc/bbs/LoL/M.1457622048.A.D80.html",
-				"[公告] LoL 樂透開獎",
-				"[彩券]",
-				"3/10",
-			},
-			{
-				"https://www.ptt.cc/bbs/LoL/M.1457622048.A.Z80.html",
-				"[公告] LoL 小樂透開獎",
-				"[彩券]",
-				"3/11",
-			},
-			{
-				"https://www.ptt.cc/bbs/LoL/M.1457622282.A.D4F.html",
-				"Re: [問題] AlphaGo打LoL的話會怎麼樣",
-				"lzainside",
-				"3/10",
-			},
-			{
-				"https://www.ptt.cc/bbs/LoL/M.1457622407.A.C98.html",
-				"[問題] 關於四名中路的比較！",
-				"lizst980074",
-				"3/10",
-			},
-			{
-				"https://www.ptt.cc/bbs/LoL/M.1457622551.A.650.html",
-				"[閒聊] 對於XG挺失望的",
-				"iamfenixsc",
-				"3/10",
-			},
-		}
+		if bbsScreen, err := GetRListNode(root); err != nil {
+			t.Errorf("Expected R List node, but got nil")
+		} else {
+			rule := Rule{"", "", strings.Contains, strings.EqualFold}
+			expects := []Result{
+				{
+					"https://www.ptt.cc/bbs/LoL/M.1457622048.A.D80.html",
+					"[公告] LoL 樂透開獎",
+					"[彩券]",
+					"3/10",
+				},
+				{
+					"https://www.ptt.cc/bbs/LoL/M.1457622048.A.Z80.html",
+					"[公告] LoL 小樂透開獎",
+					"[彩券]",
+					"3/11",
+				},
+				{
+					"https://www.ptt.cc/bbs/LoL/M.1457622282.A.D4F.html",
+					"Re: [問題] AlphaGo打LoL的話會怎麼樣",
+					"lzainside",
+					"3/10",
+				},
+				{
+					"https://www.ptt.cc/bbs/LoL/M.1457622407.A.C98.html",
+					"[問題] 關於四名中路的比較！",
+					"lizst980074",
+					"3/10",
+				},
+				{
+					"https://www.ptt.cc/bbs/LoL/M.1457622551.A.650.html",
+					"[閒聊] 對於XG挺失望的",
+					"iamfenixsc",
+					"3/10",
+				},
+			}
 
-		if err := RemoveBottumAnnouncements(bbsScreen); err != nil {
-			results := rule.Parsing(bbsScreen, strings.Contains)
-			if len(results) != len(expects) {
-				t.Errorf("len(results) = %d, len(expects) = %d not the same", len(results), len(expects))
-			} else {
-				for i, result := range results {
-					if result.Title != expects[i].Title {
-						t.Errorf("Expected title:%s, but got:%s", expects[i].Title, result.Title)
-					}
+			if err := RemoveBottumAnnouncements(bbsScreen); err != nil {
+				results := rule.Parsing(bbsScreen)
+				if len(results) != len(expects) {
+					t.Errorf("len(results) = %d, len(expects) = %d not the same", len(results), len(expects))
+				} else {
+					for i, result := range results {
+						if result.Title != expects[i].Title {
+							t.Errorf("Expected title:%s, but got:%s", expects[i].Title, result.Title)
+						}
 
-					if result.URL != expects[i].URL {
-						t.Errorf("Expected URL:%s, but got:%s", expects[i].URL, result.URL)
-					}
+						if result.URL != expects[i].URL {
+							t.Errorf("Expected URL:%s, but got:%s", expects[i].URL, result.URL)
+						}
 
-					if result.Author != expects[i].Author {
-						t.Errorf("Expected Author:%s, but got:%s", expects[i].Author, result.Author)
-					}
+						if result.Author != expects[i].Author {
+							t.Errorf("Expected Author:%s, but got:%s", expects[i].Author, result.Author)
+						}
 
-					if result.Date != expects[i].Date {
-						t.Errorf("Expected Date:%s, but got:%s", expects[i].Date, result.Date)
+						if result.Date != expects[i].Date {
+							t.Errorf("Expected Date:%s, but got:%s", expects[i].Date, result.Date)
+						}
 					}
 				}
 			}

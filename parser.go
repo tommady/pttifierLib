@@ -14,14 +14,11 @@ import (
 type StrMatcher func(s, chars string) bool
 
 // Rule is the rule for parsing posts
-//
-// TitleKey is the keywords that will be searched as if this is part of the parsing title,
-//
-// Author is a simple condition that NULL("") means for no author check, otherwise,
-// it is not case-sensitive checking using strings.EqualFold
 type Rule struct {
-	TitleKey string
-	Author   string
+	TitleKey      string
+	Author        string
+	TitleMatcher  StrMatcher
+	AuthorMatcher StrMatcher
 }
 
 // Result is the parsing result that will be returned
@@ -96,6 +93,28 @@ func GetRListNode(root *html.Node) (*html.Node, error) {
 	return n, nil
 }
 
+// GetPrevNextPageLink returns previous and next page's links,
+func GetPrevNextPageLink(root *html.Node) (prev string, next string, err error) {
+	if root == nil {
+		return "", "", ReportError("Get nil root, can not extracts out previous and next page's links", nil)
+	}
+
+	ns := scrape.FindAll(root, scrape.ByClass("wide"))
+	for _, n := range ns {
+		text := scrape.Text(n)
+		link := scrape.Attr(n, "href")
+		if link != "" {
+			if strings.Contains(text, "上頁") {
+				prev = pttBaseURL + link
+			} else if strings.Contains(text, "下頁") {
+				next = pttBaseURL + link
+			}
+		}
+	}
+
+	return prev, next, nil
+}
+
 // RemoveBottumAnnouncements returns the whole html tree without bottum announcements if contains,
 func RemoveBottumAnnouncements(root *html.Node) (err error) {
 	if root == nil {
@@ -104,7 +123,7 @@ func RemoveBottumAnnouncements(root *html.Node) (err error) {
 
 	n, ok := scrape.Find(root, scrape.ByClass("r-list-sep"))
 	if !ok {
-		// gvin root is not contain botum announcements, no need to bother with it
+		// gvin root is not contain bottum announcements, no need to bother with it
 		return nil
 	}
 
@@ -134,7 +153,7 @@ func RemoveBottumAnnouncements(root *html.Node) (err error) {
 }
 
 // Parsing returns the result of extracting ptt web page by given rule and page
-func (rule *Rule) Parsing(root *html.Node, titleMatcher StrMatcher) (results []*Result) {
+func (rule *Rule) Parsing(root *html.Node) (results []*Result) {
 	if root == nil {
 		return
 	}
@@ -145,10 +164,10 @@ func (rule *Rule) Parsing(root *html.Node, titleMatcher StrMatcher) (results []*
 		skipThisParse = false
 
 		title := getTitle(article)
-		rule.compareTitle(title, titleMatcher)
+		rule.compareTitle(title)
 
 		author := getAuthor(article)
-		rule.compareAuthor(author, strings.EqualFold)
+		rule.compareAuthor(author)
 
 		url := getURL(article)
 		date := getDate(article)
@@ -170,9 +189,9 @@ func (rule *Rule) Parsing(root *html.Node, titleMatcher StrMatcher) (results []*
 
 // compareTitle returns true if the parsing title is obay the strMatcher,
 // if rule's TitleKey == "" means a post with any title will be accepted as result
-func (rule *Rule) compareTitle(title string, strMatcher StrMatcher) {
+func (rule *Rule) compareTitle(title string) {
 	if !skipThisParse {
-		if rule.TitleKey != "" && !strMatcher(title, rule.TitleKey) {
+		if rule.TitleKey != "" && !rule.TitleMatcher(title, rule.TitleKey) {
 			skipThisParse = true
 		}
 	}
@@ -180,9 +199,9 @@ func (rule *Rule) compareTitle(title string, strMatcher StrMatcher) {
 
 // compareAuthor returns true if the parsing author is obay the strMatcher,
 // if rule's Author == "" means a post with any author will be accepted as result
-func (rule *Rule) compareAuthor(author string, strMatcher StrMatcher) {
+func (rule *Rule) compareAuthor(author string) {
 	if !skipThisParse {
-		if rule.Author != "" && !strMatcher(author, rule.Author) {
+		if rule.Author != "" && !rule.AuthorMatcher(author, rule.Author) {
 			skipThisParse = true
 		}
 	}
