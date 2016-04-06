@@ -2,271 +2,178 @@ package pttifierLib
 
 import (
 	"errors"
-	"net/http"
 	"strings"
 
-	"github.com/yhat/scrape"
 	"golang.org/x/net/html"
-	"golang.org/x/net/html/atom"
 )
 
-// StrMatcher returns true when special rule of s and chars are found
 type StrMatcher func(s, chars string) bool
+type IntMatcher func(n, comparison int) bool
+type RuleSetting func(*Parser)
+type Parsers []*Parser
+type Results []*PostBaseInfo
 
-// Rule is the rule for parsing posts
-type Rule struct {
-	TitleKey      string
-	Author        string
-	TitleMatcher  StrMatcher
-	AuthorMatcher StrMatcher
+type TextRule struct {
+	Title       string
+	Author      string
+	Content     string
+	TweetAmount int
 }
 
-// Result is the parsing result that will be returned
-type Result struct {
-	URL    string
-	Title  string
-	Author string
-	Date   string
+type MatcherRule struct {
+	TitleMatcher       StrMatcher
+	AuthorMatcher      StrMatcher
+	ContentMatcher     StrMatcher
+	TweetAmountMatcher IntMatcher
 }
 
-const (
-	pttBaseURL         = "https://www.ptt.cc"
-	pttBaseCrawlingURL = "https://www.ptt.cc/bbs/"
-	defaultParsingPage = "/index"
-)
+type Parser struct {
+	TextRule
+	MatcherRule
+	skipThisParse bool
+	err           error
+}
 
 var (
-	skipThisParse bool
+	ErrRootNodeNil = errors.New("pttifier.parser: input root node is nil")
 )
 
-// GetRootNode returns the root node of ginving Board and board page number,
-// if want to start from default index then pageNum should be NULL ("")
-func GetRootNode(targetBoard, pageNum string) (*html.Node, error) {
-	targetURL := pttBaseCrawlingURL + targetBoard + defaultParsingPage + pageNum + ".html"
-	req, err := http.NewRequest("GET", targetURL, nil)
-	if err != nil {
-		return nil, ReportError("failed on new request", err)
+func NewParser(settings ...RuleSetting) *Parser {
+	p := new(Parser)
+	for _, setting := range settings {
+		setting(p)
 	}
 
-	// for some specific board need over 18 years old checks
-	req.Header.Set("Cookie", "over18=1")
-
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, ReportError("failed on default client do", err)
+	if p.TitleMatcher == nil {
+		p.TitleMatcher = strings.Contains
+	}
+	if p.AuthorMatcher == nil {
+		p.AuthorMatcher = strings.EqualFold
+	}
+	if p.TweetAmountMatcher == nil {
+		p.TweetAmountMatcher = LessThanOrEqualToComparison
+	}
+	if p.ContentMatcher == nil {
+		p.ContentMatcher = strings.Contains
 	}
 
-	root, err := html.Parse(res.Body)
-	res.Body.Close()
-	if err != nil {
-		return nil, ReportError("html parse web page fail", err)
-	}
-
-	return root, nil
+	return p
 }
 
-// GetActionBarNode returns <div class="action-bar"> from givin root node
-func GetActionBarNode(root *html.Node) (*html.Node, error) {
-	if root == nil {
-		return nil, ReportError("Get nil root, can not extracts out Action Bar Node", nil)
+func (p *Parser) setErr(err error) {
+	if p.err == nil {
+		p.err = err
 	}
-
-	n, ok := scrape.Find(root, scrape.ByClass("action-bar"))
-	if !ok {
-		return nil, ReportError("Can not find Action Bar Node from givin node", nil)
-	}
-
-	return n, nil
 }
 
-// GetRListNode returns <div class="r-list-container bbs-screen"> from givin root node
-func GetRListNode(root *html.Node) (*html.Node, error) {
-	if root == nil {
-		return nil, ReportError("Get nil root, can not extracts out R List Node", nil)
-	}
-
-	n, ok := scrape.Find(root, scrape.ByClass("bbs-screen"))
-	if !ok {
-		return nil, ReportError("Can not find R List Node from givin node", nil)
-	}
-
-	return n, nil
+func (p *Parser) Err() error {
+	return p.err
 }
 
-// GetPrevNextPageLink returns previous and next page's links,
-func GetPrevNextPageLink(root *html.Node) (prev string, next string, err error) {
-	if root == nil {
-		return "", "", ReportError("Get nil root, can not extracts out previous and next page's links", nil)
+func SetParserTitle(title string) RuleSetting {
+	return func(p *Parser) {
+		p.Title = title
 	}
-
-	ns := scrape.FindAll(root, scrape.ByClass("wide"))
-	for _, n := range ns {
-		text := scrape.Text(n)
-		link := scrape.Attr(n, "href")
-		if link != "" {
-			if strings.Contains(text, "上頁") {
-				prev = pttBaseURL + link
-			} else if strings.Contains(text, "下頁") {
-				next = pttBaseURL + link
-			}
-		}
-	}
-
-	return prev, next, nil
 }
 
-// RemoveBottumAnnouncements returns the whole html tree without bottum announcements if contains,
-func RemoveBottumAnnouncements(root *html.Node) (err error) {
-	if root == nil {
-		return ReportError("Gvin root is nil", nil)
+func SetParserAuthor(author string) RuleSetting {
+	return func(p *Parser) {
+		p.Author = author
 	}
-
-	n, ok := scrape.Find(root, scrape.ByClass("r-list-sep"))
-	if !ok {
-		// gvin root is not contain bottum announcements, no need to bother with it
-		return nil
-	}
-
-	// WARNING: if givin root node is not <div class="r-list-container bbs-screen"> or returns by
-	// function GetRListNode, may causes panic
-	defer func() {
-		if r := recover(); r != nil {
-			msg := "root node is not <r-list-container bbs-screen> node"
-			switch x := r.(type) {
-			case string:
-				err = ReportError(msg, errors.New(x))
-			case error:
-				err = ReportError(msg, x)
-			default:
-				err = ReportError(msg, errors.New("Unknown panic"))
-			}
-		}
-	}()
-
-	var tmpNext *html.Node
-	for c := n; c != nil; c = tmpNext {
-		tmpNext = c.NextSibling
-		root.RemoveChild(c)
-	}
-
-	return nil
 }
 
-// Parsing returns the result of extracting ptt web page by given rule and page
-func (rule *Rule) Parsing(root *html.Node) (results []*Result) {
-	if root == nil {
-		return
+func SetParserTweetAmount(tweetAmount string) RuleSetting {
+	return func(p *Parser) {
+		p.TweetAmount = TweetAmountStringToInt(tweetAmount)
 	}
+}
 
-	articles := scrape.FindAll(root, scrape.ByClass("r-ent"))
+func SetParserContent(content string) RuleSetting {
+	return func(p *Parser) {
+		p.Content = content
+	}
+}
 
-	for _, article := range articles {
-		skipThisParse = false
+func SetParserTitleMatcher(matcher StrMatcher) RuleSetting {
+	return func(p *Parser) {
+		p.TitleMatcher = matcher
+	}
+}
 
-		title := getTitle(article)
-		rule.compareTitle(title)
+func SetParserAuthorMatcher(matcher StrMatcher) RuleSetting {
+	return func(p *Parser) {
+		p.AuthorMatcher = matcher
+	}
+}
 
-		author := getAuthor(article)
-		rule.compareAuthor(author)
+func SetParserContentMatcher(matcher StrMatcher) RuleSetting {
+	return func(p *Parser) {
+		p.ContentMatcher = matcher
+	}
+}
 
-		url := getURL(article)
-		date := getDate(article)
+func (p *Parser) Parsing(root *html.Node) (results Results) {
+	board := NewBoardCrawler(root)
 
-		if skipThisParse {
+	for _, article := range board.GetArticlesInfos() {
+		p.skipThisParse = false
+		p.compareTitle(article.Title)
+		p.compareAuthor(article.Author)
+		p.compareTweetAmount(article.TweetAmount)
+		if p.skipThisParse {
 			continue
 		}
 
-		result := new(Result)
-		result.Title = title
-		result.URL = url
-		result.Author = author
-		result.Date = date
-		results = append(results, result)
+		results = append(results, article)
 	}
 
 	return results
 }
 
-// compareTitle returns true if the parsing title is obay the strMatcher,
-// if rule's TitleKey == "" means a post with any title will be accepted as result
-func (rule *Rule) compareTitle(title string) {
-	if !skipThisParse {
-		if rule.TitleKey != "" && !rule.TitleMatcher(title, rule.TitleKey) {
-			skipThisParse = true
-		}
+func (p *Parser) compareTitle(title string) {
+	if p.skipThisParse {
+		return
+	}
+
+	if p.Title != "" && !p.TitleMatcher(title, p.Title) {
+		p.skipThisParse = true
 	}
 }
 
-// compareAuthor returns true if the parsing author is obay the strMatcher,
-// if rule's Author == "" means a post with any author will be accepted as result
-func (rule *Rule) compareAuthor(author string) {
-	if !skipThisParse {
-		if rule.Author != "" && !rule.AuthorMatcher(author, rule.Author) {
-			skipThisParse = true
-		}
+func (p *Parser) compareAuthor(author string) {
+	if p.skipThisParse {
+		return
+	}
+
+	if p.Author != "" && !p.AuthorMatcher(author, p.Author) {
+		p.skipThisParse = true
 	}
 }
 
-// getTitle returns the post published title
-func getTitle(article *html.Node) (title string) {
-	if !skipThisParse {
-		t, ok := scrape.Find(article, scrape.ByTag(atom.A))
-		if !ok {
-			// post has been deleted
-			skipThisParse = true
-			return
-		}
-
-		title = scrape.Text(t)
+func (p *Parser) compareTweetAmount(tweetAmount int) {
+	if p.skipThisParse {
+		return
 	}
 
-	return
+	if p.TweetAmount != 0 && !p.TweetAmountMatcher(tweetAmount, p.TweetAmount) {
+		p.skipThisParse = true
+	}
 }
 
-// getURL returns the post published url link
-func getURL(article *html.Node) (url string) {
-	if !skipThisParse {
-		t, ok := scrape.Find(article, scrape.ByTag(atom.A))
-		if !ok {
-			// post has been deleted
-			skipThisParse = true
-			return
-		}
-
-		url = pttBaseURL + scrape.Attr(t, "href")
+func (p *Parser) comparePostContent(URL string) {
+	if p.skipThisParse {
+		return
 	}
 
-	return
-}
-
-// getAuthor returns the post published author
-func getAuthor(article *html.Node) (author string) {
-	if !skipThisParse {
-		a, ok := scrape.Find(article, scrape.ByClass("author"))
-		if !ok {
-			// this should not be happend, unless the ptt server suddenly down
-			skipThisParse = true
-			return
-		}
-
-		author = scrape.Text(a)
+	root, err := GetNodeFromLink(URL)
+	if err != nil {
+		p.skipThisParse = true
+		return
 	}
 
-	return
-}
-
-// getDate returns the post published day
-func getDate(article *html.Node) (date string) {
-	if !skipThisParse {
-		d, ok := scrape.Find(article, scrape.ByClass("date"))
-		if !ok {
-			// this should not be happend, unless the ptt server suddenly down
-			skipThisParse = true
-			return
-		}
-
-		date = scrape.Text(d)
+	postCrawler := NewPostCrawler(root)
+	content := postCrawler.GetArticleContents()
+	if p.Content != "" && !p.ContentMatcher(content, p.Content) {
+		p.skipThisParse = true
 	}
-
-	return
 }
