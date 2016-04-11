@@ -16,6 +16,13 @@ const (
 	DefaultParsingPage = "/index"
 )
 
+type BaseInfo struct {
+	URL    string
+	Title  string
+	Author string
+	Date   string
+}
+
 func WrapBoardPageLink(targetBoard, pageNum string) string {
 	return PttBaseCrawlingURL + targetBoard + DefaultParsingPage + pageNum + ".html"
 }

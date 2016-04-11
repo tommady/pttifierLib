@@ -9,11 +9,8 @@ import (
 	"golang.org/x/net/html/atom"
 )
 
-type PostBaseInfo struct {
-	URL         string
-	Title       string
-	Author      string
-	Date        string
+type BoardInfo struct {
+	BaseInfo
 	TweetAmount int
 }
 
@@ -84,7 +81,7 @@ func (b *BoardCrawler) getPageLink(pageText string) (pageLink string) {
 	return
 }
 
-func (b *BoardCrawler) GetArticlesInfos() (infos []*PostBaseInfo) {
+func (b *BoardCrawler) GetPostsInfos() (infos []*BoardInfo) {
 	if b.err == ErrRListNodeNil {
 		return
 	}
@@ -103,7 +100,7 @@ func (b *BoardCrawler) GetArticlesInfos() (infos []*PostBaseInfo) {
 			continue
 		}
 
-		info := new(PostBaseInfo)
+		info := new(BoardInfo)
 		info.Title = title
 		info.URL = url
 		info.Author = author

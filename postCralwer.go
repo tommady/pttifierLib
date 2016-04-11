@@ -2,6 +2,7 @@ package pttifierLib
 
 import (
 	"errors"
+	"net"
 	"strings"
 
 	"github.com/yhat/scrape"
@@ -52,7 +53,74 @@ func (p *PostCrawler) Err() error {
 	return p.err
 }
 
-func (p *PostCrawler) GetArticleContents() string {
+func (p *PostCrawler) GetAuthor() string {
+	return p.getArticleMetalineData("作者")
+}
+
+func (p *PostCrawler) GetTitle() string {
+	return p.getArticleMetalineData("標題")
+}
+
+func (p *PostCrawler) GetDate() string {
+	return p.getArticleMetalineData("時間")
+}
+
+func (p *PostCrawler) getArticleMetalineData(keyword string) (data string) {
+	if p.err == ErrMainContainerNodeNil {
+		return
+	}
+
+	n, ok := scrape.Find(p.mainContainerNode, func(n *html.Node) bool {
+		return scrape.Attr(n, "class") == "article-metaline" &&
+			scrape.Text(n.FirstChild) == keyword
+	})
+	if ok {
+		data = scrape.Text(n.LastChild)
+	}
+
+	return
+}
+
+func (p *PostCrawler) GetIP() (ip net.IP) {
+	if p.err == ErrMainContainerNodeNil {
+		return
+	}
+
+	n, ok := scrape.Find(p.mainContainerNode, func(n *html.Node) bool {
+		return scrape.Attr(n, "class") == "f2" &&
+			strings.HasPrefix(scrape.Text(n), "※ 發信站: 批踢踢實業坊(ptt.cc)")
+	})
+	if ok {
+		s := scrape.Text(n)
+		ts := strings.TrimPrefix(s, "※ 發信站: 批踢踢實業坊(ptt.cc), 來自: ")
+		ip = net.ParseIP(ts)
+	}
+
+	return
+}
+
+func (p *PostCrawler) GetURL() (url string) {
+	if p.err == ErrMainContainerNodeNil {
+		return
+	}
+
+	n, ok := scrape.Find(p.mainContainerNode, func(n *html.Node) bool {
+		return scrape.Attr(n, "class") == "f2" &&
+			strings.HasPrefix(scrape.Text(n), "※ 文章網址: ")
+	})
+	if ok {
+		s := scrape.Text(n)
+		url = strings.TrimPrefix(s, "※ 文章網址: ")
+	}
+
+	return
+}
+
+func (p *PostCrawler) GetContent() string {
+	if p.err == ErrMainContainerNodeNil {
+		return ""
+	}
+
 	content := scrape.FindAll(p.mainContainerNode, func(n *html.Node) bool {
 		return n.Type == html.TextNode &&
 			scrape.Attr(n.Parent, "class") != "article-meta-tag" &&
@@ -65,11 +133,11 @@ func (p *PostCrawler) GetArticleContents() string {
 	})
 
 	joiner := func(ns []*html.Node) string {
-		content := ""
+		c := ""
 		for _, n := range ns {
-			content += strings.TrimSpace(n.Data)
+			c += strings.TrimSpace(n.Data)
 		}
-		return content
+		return c
 	}
 
 	return joiner(content)

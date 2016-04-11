@@ -1,6 +1,7 @@
 package pttifierLib_test
 
 import (
+	"net"
 	"strings"
 	"testing"
 
@@ -8,17 +9,77 @@ import (
 	"golang.org/x/net/html"
 )
 
-func TestGetArticleContents(t *testing.T) {
+func TestGetAuthor(t *testing.T) {
 	root, _ := html.Parse(strings.NewReader(TestContentHTML))
 	p := pttifierLib.NewPostCrawler(root)
 
-	actual := p.GetArticleContents()
+	expect := "senyek9527 ()"
+	actual := p.GetAuthor()
+
+	if expect != actual {
+		t.Errorf("GetAuthor: expect-> %s, actual-> %s", expect, actual)
+	}
+}
+
+func TestGetTitle(t *testing.T) {
+	root, _ := html.Parse(strings.NewReader(TestContentHTML))
+	p := pttifierLib.NewPostCrawler(root)
+
+	expect := "Re: [新聞] 5年7起隨機殺人 台灣社會學到甚麼？"
+	actual := p.GetTitle()
+
+	if expect != actual {
+		t.Errorf("GetTitle: expect-> %s, actual-> %s", expect, actual)
+	}
+}
+
+func TestGetDate(t *testing.T) {
+	root, _ := html.Parse(strings.NewReader(TestContentHTML))
+	p := pttifierLib.NewPostCrawler(root)
+
+	expect := "Sun Apr  3 21:04:15 2016"
+	actual := p.GetDate()
+
+	if expect != actual {
+		t.Errorf("GetDate: expect-> %s, actual-> %s", expect, actual)
+	}
+}
+
+func TestGetIP(t *testing.T) {
+	root, _ := html.Parse(strings.NewReader(TestContentHTML))
+	p := pttifierLib.NewPostCrawler(root)
+
+	expect := net.ParseIP("126.148.111.173")
+	actual := p.GetIP()
+
+	if !expect.Equal(actual) {
+		t.Errorf("GetIP: expect-> %s, actual-> %s", expect.String(), actual.String())
+	}
+}
+
+func TestGetURL(t *testing.T) {
+	root, _ := html.Parse(strings.NewReader(TestContentHTML))
+	p := pttifierLib.NewPostCrawler(root)
+
+	expect := "https://www.ptt.cc/bbs/Gossiping/M.1459688662.A.CFE.html"
+	actual := p.GetURL()
+
+	if expect != actual {
+		t.Errorf("GetURL: expect-> %s, actual-> %s", expect, actual)
+	}
+}
+
+func TestGetContent(t *testing.T) {
+	root, _ := html.Parse(strings.NewReader(TestContentHTML))
+	p := pttifierLib.NewPostCrawler(root)
+
+	actual := p.GetContent()
 
 	if strings.Contains(actual, "還沒崩潰完？") {
-		t.Errorf("GetArticleContents: contain tweet's content")
+		t.Errorf("GetContent: contain tweet's content")
 	}
 	if strings.Contains(actual, "新唐人亞太台") {
-		t.Errorf("GetArticleContents: contain quotation's content")
+		t.Errorf("GetContent: contain quotation's content")
 	}
 }
 
@@ -28,52 +89,52 @@ func TestGetTweets(t *testing.T) {
 
 	expects := []*pttifierLib.Tweet{
 		{
-			"skyexers",
-			"還沒崩潰完？",
-			"04/03 21:07",
-			pttifierLib.TweetTagBoo,
+			Author:  "skyexers",
+			Content: "還沒崩潰完？",
+			Date:    "04/03 21:07",
+			Tag:     pttifierLib.TweetTagBoo,
 		},
 		{
-			"hkcdc",
-			"不判死的確是問題",
-			"04/03 21:15",
-			pttifierLib.TweetTagNormal,
+			Author:  "hkcdc",
+			Content: "不判死的確是問題",
+			Date:    "04/03 21:15",
+			Tag:     pttifierLib.TweetTagNormal,
 		},
 		{
-			"pictograma",
-			"一樓崩潰標準示範",
-			"04/03 21:15",
-			pttifierLib.TweetTagPraise,
+			Author:  "pictograma",
+			Content: "一樓崩潰標準示範",
+			Date:    "04/03 21:15",
+			Tag:     pttifierLib.TweetTagPraise,
 		},
 		{
-			"drigo",
-			"學到原來台灣人書唸不夠多, 所以獵廢死",
-			"04/03 21:16",
-			pttifierLib.TweetTagNormal,
+			Author:  "drigo",
+			Content: "學到原來台灣人書唸不夠多, 所以獵廢死",
+			Date:    "04/03 21:16",
+			Tag:     pttifierLib.TweetTagNormal,
 		},
 		{
-			"ainor",
-			"一堆22K都沒殺人了",
-			"04/03 21:19",
-			pttifierLib.TweetTagBoo,
+			Author:  "ainor",
+			Content: "一堆22K都沒殺人了",
+			Date:    "04/03 21:19",
+			Tag:     pttifierLib.TweetTagBoo,
 		},
 		{
-			"dave01",
-			"沒學到  過一陣子 霉不報導 一堆人就忘了",
-			"04/03 21:30",
-			pttifierLib.TweetTagNormal,
+			Author:  "dave01",
+			Content: "沒學到  過一陣子 霉不報導 一堆人就忘了",
+			Date:    "04/03 21:30",
+			Tag:     pttifierLib.TweetTagNormal,
 		},
 		{
-			"puorg",
-			"你太中肯了",
-			"04/03 22:27",
-			pttifierLib.TweetTagPraise,
+			Author:  "puorg",
+			Content: "你太中肯了",
+			Date:    "04/03 22:27",
+			Tag:     pttifierLib.TweetTagPraise,
 		},
 		{
-			"xgodtw",
-			"有點中肯",
-			"04/03 23:51",
-			pttifierLib.TweetTagNormal,
+			Author:  "xgodtw",
+			Content: "有點中肯",
+			Date:    "04/03 23:51",
+			Tag:     pttifierLib.TweetTagNormal,
 		},
 	}
 

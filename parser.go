@@ -3,15 +3,12 @@ package pttifierLib
 import (
 	"errors"
 	"strings"
-
-	"golang.org/x/net/html"
 )
 
 type StrMatcher func(s, chars string) bool
 type IntMatcher func(n, comparison int) bool
 type RuleSetting func(*Parser)
-type Parsers []*Parser
-type Results []*PostBaseInfo
+type Result BaseInfo
 
 type TextRule struct {
 	Title       string
@@ -30,8 +27,7 @@ type MatcherRule struct {
 type Parser struct {
 	TextRule
 	MatcherRule
-	skipThisParse bool
-	err           error
+	err error
 }
 
 var (
@@ -112,68 +108,87 @@ func SetParserContentMatcher(matcher StrMatcher) RuleSetting {
 	}
 }
 
-func (p *Parser) Parsing(root *html.Node) (results Results) {
-	board := NewBoardCrawler(root)
+func (p *Parser) Parsing(b *BoardCrawler) (results []*Result) {
+	postsInfos := b.GetPostsInfos()
+	resultCh := make(chan *Result, len(postsInfos))
+	defer close(resultCh)
 
-	for _, article := range board.GetArticlesInfos() {
-		p.skipThisParse = false
-		p.compareTitle(article.Title)
-		p.compareAuthor(article.Author)
-		p.compareTweetAmount(article.TweetAmount)
-		if p.skipThisParse {
-			continue
+	for _, postInfo := range postsInfos {
+		go func(postInfo *BoardInfo) {
+			if !p.compareTitle(postInfo.Title) ||
+				!p.compareAuthor(postInfo.Author) ||
+				!p.compareTweetAmount(postInfo.TweetAmount) {
+				resultCh <- nil
+				return
+			}
+
+			root, err := GetNodeFromLink(postInfo.URL)
+			if err != nil {
+				resultCh <- nil
+				return
+			}
+
+			postCrawler := NewPostCrawler(root)
+			if postCrawler.Err() != nil {
+				resultCh <- nil
+				return
+			}
+			
+			content := postCrawler.GetContent()
+			if !p.comparePostContent(content) {
+				resultCh <- nil
+				return
+			}
+
+			resultCh <- &Result{
+				URL:    postInfo.URL,
+				Title:  postInfo.Title,
+				Author: postInfo.Author,
+				Date:   postInfo.Date,
+			}
+		}(postInfo)
+	}
+
+	for i := 0; i < len(postsInfos); i++ {
+		select {
+		case r := <-resultCh:
+			if r != nil {
+				results = append(results, r)
+			}
 		}
-
-		results = append(results, article)
 	}
 
 	return results
 }
 
-func (p *Parser) compareTitle(title string) {
-	if p.skipThisParse {
-		return
-	}
-
+func (p *Parser) compareTitle(title string) bool {
 	if p.Title != "" && !p.TitleMatcher(title, p.Title) {
-		p.skipThisParse = true
+		return false
 	}
+
+	return true
 }
 
-func (p *Parser) compareAuthor(author string) {
-	if p.skipThisParse {
-		return
-	}
-
+func (p *Parser) compareAuthor(author string) bool {
 	if p.Author != "" && !p.AuthorMatcher(author, p.Author) {
-		p.skipThisParse = true
+		return false
 	}
+
+	return true
 }
 
-func (p *Parser) compareTweetAmount(tweetAmount int) {
-	if p.skipThisParse {
-		return
-	}
-
+func (p *Parser) compareTweetAmount(tweetAmount int) bool {
 	if p.TweetAmount != 0 && !p.TweetAmountMatcher(tweetAmount, p.TweetAmount) {
-		p.skipThisParse = true
+		return false
 	}
+
+	return true
 }
 
-func (p *Parser) comparePostContent(URL string) {
-	if p.skipThisParse {
-		return
-	}
-
-	root, err := GetNodeFromLink(URL)
-	if err != nil {
-		p.skipThisParse = true
-		return
-	}
-
-	postCrawler := NewPostCrawler(root)
-	content := postCrawler.GetArticleContents()
+func (p *Parser) comparePostContent(content string) bool {
 	if p.Content != "" && !p.ContentMatcher(content, p.Content) {
-		p.skipThisParse = true
+		return false
 	}
+
+	return true
 }
