@@ -1,9 +1,6 @@
 package pttifierLib
 
-import (
-	"errors"
-	"strings"
-)
+import "strings"
 
 type StrMatcher func(s, chars string) bool
 type IntMatcher func(n, comparison int) bool
@@ -29,10 +26,6 @@ type Parser struct {
 	MatcherRule
 	err error
 }
-
-var (
-	ErrRootNodeNil = errors.New("pttifier.parser: input root node is nil")
-)
 
 func NewParser(settings ...RuleSetting) *Parser {
 	p := new(Parser)
@@ -108,48 +101,32 @@ func SetParserContentMatcher(matcher StrMatcher) RuleSetting {
 	}
 }
 
-func (p *Parser) Parsing(b *BoardCrawler) (results []*Result) {
-	postsInfos := b.GetPostsInfos()
-	resultCh := make(chan *Result, len(postsInfos))
-	defer close(resultCh)
+func (p *Parser) Parsing(posts []*BoardInfoAndArticle) (results []*Result) {
+	if posts == nil {
+		return
+	}
 
-	for _, postInfo := range postsInfos {
-		go func(postInfo *BoardInfo) {
-			if !p.compareTitle(postInfo.Title) ||
-				!p.compareAuthor(postInfo.Author) ||
-				!p.compareTweetAmount(postInfo.TweetAmount) {
-				resultCh <- nil
-				return
-			}
-
-			root, err := GetNodeFromLink(postInfo.URL)
-			if err != nil {
-				resultCh <- nil
-				return
-			}
-
-			postCrawler := NewPostCrawler(root)
-			if postCrawler.Err() != nil {
-				resultCh <- nil
-				return
-			}
-			
-			content := postCrawler.GetContent()
-			if !p.comparePostContent(content) {
+	resultCh := make(chan *Result, len(posts))
+	for _, post := range posts {
+		go func(post *BoardInfoAndArticle) {
+			if !p.compareTitle(post.Title) ||
+				!p.compareAuthor(post.Author) ||
+				!p.compareTweetAmount(post.TweetAmount) ||
+				!p.comparePostContent(post.Content) {
 				resultCh <- nil
 				return
 			}
 
 			resultCh <- &Result{
-				URL:    postInfo.URL,
-				Title:  postInfo.Title,
-				Author: postInfo.Author,
-				Date:   postInfo.Date,
+				URL:    post.URL,
+				Title:  post.Title,
+				Author: post.Author,
+				Date:   post.Date,
 			}
-		}(postInfo)
+		}(post)
 	}
 
-	for i := 0; i < len(postsInfos); i++ {
+	for i := 0; i < len(posts); i++ {
 		select {
 		case r := <-resultCh:
 			if r != nil {

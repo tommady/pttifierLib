@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/yhat/scrape"
 	"golang.org/x/net/html"
@@ -14,6 +15,11 @@ const (
 	PttBaseURL         = "https://www.ptt.cc"
 	PttBaseCrawlingURL = "https://www.ptt.cc/bbs/"
 	DefaultParsingPage = "/index"
+)
+
+var (
+	MaxReConnectTimes                   = 5
+	MaxReConnectDelayTime time.Duration = 5
 )
 
 type BaseInfo struct {
@@ -28,6 +34,7 @@ func WrapBoardPageLink(targetBoard, pageNum string) string {
 }
 
 func GetNodeFromLink(targetURL string) (*html.Node, error) {
+	client := new(http.Client)
 	req, err := http.NewRequest("GET", targetURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed on new request", err)
@@ -36,16 +43,30 @@ func GetNodeFromLink(targetURL string) (*html.Node, error) {
 	// for some specific board need over 18 years old checks
 	req.Header.Set("Cookie", "over18=1")
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed on default client do", err)
 	}
 
+	if res.StatusCode == http.StatusServiceUnavailable ||
+		res.StatusCode == http.StatusBadGateway {
+		for i := 0; i < MaxReConnectTimes; i++ {
+			time.Sleep(MaxReConnectDelayTime)
+			res, err = client.Do(req)
+			if err != nil {
+				return nil, fmt.Errorf("failed on default client do", err)
+			}
+			if res.StatusCode == http.StatusOK {
+				break
+			}
+		}
+	}
+
 	root, err := html.Parse(res.Body)
-	res.Body.Close()
 	if err != nil {
 		return nil, fmt.Errorf("html parse web page fail", err)
 	}
+	res.Body.Close()
 
 	return root, nil
 }

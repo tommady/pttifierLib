@@ -9,6 +9,12 @@ import (
 	"golang.org/x/net/html/atom"
 )
 
+type BoardInfoAndArticle struct {
+	*BoardInfo
+	Content string
+	Tweets  []*Tweet
+}
+
 type BoardInfo struct {
 	BaseInfo
 	TweetAmount int
@@ -74,6 +80,49 @@ func (b *BoardCrawler) getPageLink(pageText string) (pageLink string) {
 			if strings.Contains(text, pageText) {
 				pageLink = PttBaseURL + link
 				break
+			}
+		}
+	}
+
+	return
+}
+
+func (b *BoardCrawler) GetPostsInfosAndArticles() (infosAndArticles []*BoardInfoAndArticle) {
+	if b.err == ErrRListNodeNil {
+		return
+	}
+
+	infos := b.GetPostsInfos()
+	infoAndArticleCh := make(chan *BoardInfoAndArticle, len(infos))
+	for _, info := range infos {
+		go func(info *BoardInfo) {
+			post, err := GetNodeFromLink(info.URL)
+			if err != nil {
+				infoAndArticleCh <- nil
+				return
+			}
+
+			postCrawler := NewPostCrawler(post)
+			content := postCrawler.GetContent()
+			tweets := postCrawler.GetTweets()
+			if postCrawler.Err() != nil {
+				infoAndArticleCh <- nil
+				return
+			}
+
+			infoAndArticleCh <- &BoardInfoAndArticle{
+				BoardInfo: info,
+				Content:   content,
+				Tweets:    tweets,
+			}
+		}(info)
+	}
+
+	for i := 0; i < len(infos); i++ {
+		select {
+		case infoAndArticle := <-infoAndArticleCh:
+			if infoAndArticle != nil {
+				infosAndArticles = append(infosAndArticles, infoAndArticle)
 			}
 		}
 	}

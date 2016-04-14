@@ -1,14 +1,3 @@
-# PttifierLib
-
-[![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/tommady/pttifierLib/blob/master/LICENSE)[![Build Status](https://travis-ci.org/tommady/pttifierLib.svg?branch=master)](https://travis-ci.org/tommady/pttifierLib)[![Coverage Status](https://coveralls.io/repos/github/tommady/pttifierLib/badge.svg?branch=master)](https://coveralls.io/github/tommady/pttifierLib?branch=master)
-
-A library for crawling Taiwan BBS PTT web posts and parsing out those specific articles by your defined rules.
-
-## Install
-    go get -u -x github.com/tommady/pttifierLib
-
-## Example
-```go
 package main
 
 import (
@@ -61,5 +50,3 @@ func main() {
 		fmt.Println(r.Date, r.Title, r.Author)
 	}
 }
-
-```
