@@ -1,7 +1,7 @@
 package pttifierLib
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,6 +20,7 @@ const (
 var (
 	MaxReConnectTimes                   = 5
 	MaxReConnectDelayTime time.Duration = 5
+	ErrHttpStatusNotOk                  = errors.New("Http status is not OK")
 )
 
 type BaseInfo struct {
@@ -37,7 +38,7 @@ func GetNodeFromLink(targetURL string) (*html.Node, error) {
 	client := new(http.Client)
 	req, err := http.NewRequest("GET", targetURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed on new request", err)
+		return nil, err
 	}
 
 	// for some specific board need over 18 years old checks
@@ -45,16 +46,17 @@ func GetNodeFromLink(targetURL string) (*html.Node, error) {
 
 	res, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed on default client do", err)
+		return nil, err
 	}
 
 	if res.StatusCode == http.StatusServiceUnavailable ||
-		res.StatusCode == http.StatusBadGateway {
+		res.StatusCode == http.StatusBadGateway ||
+		res.StatusCode == http.StatusGatewayTimeout {
 		for i := 0; i < MaxReConnectTimes; i++ {
 			time.Sleep(MaxReConnectDelayTime)
 			res, err = client.Do(req)
 			if err != nil {
-				return nil, fmt.Errorf("failed on default client do", err)
+				return nil, err
 			}
 			if res.StatusCode == http.StatusOK {
 				break
@@ -62,11 +64,15 @@ func GetNodeFromLink(targetURL string) (*html.Node, error) {
 		}
 	}
 
+	if res.StatusCode != http.StatusOK {
+		return nil, ErrHttpStatusNotOk
+	}
+
 	root, err := html.Parse(res.Body)
 	if err != nil {
-		return nil, fmt.Errorf("html parse web page fail", err)
+		return nil, err
 	}
-	res.Body.Close()
+	defer res.Body.Close()
 
 	return root, nil
 }
