@@ -52,7 +52,7 @@ var TestBoardHTML = `
 	</div>
 	<div class="r-list-container bbs-screen">
 		<div class="r-ent">
-			<div class="nrec"><span class="hl f3">11</span></div>
+			<div class="nrec"><span class="hl f3">12</span></div>
 			<div class="mark">M</div>
 			<div class="title">
 				<a href="/bbs/LoL/M.1457622048.A.D80.html">[公告] LoL 樂透開獎</a>

@@ -1,6 +1,7 @@
 package pttifierLib_test
 
 import (
+	"sort"
 	"strings"
 	"testing"
 
@@ -30,11 +31,17 @@ func TestGetNextPageLink(t *testing.T) {
 	}
 }
 
+type GetPostsInfosSortWrapper []*pttifierLib.BoardInfo
+
+func (w GetPostsInfosSortWrapper) Len() int           { return len(w) }
+func (w GetPostsInfosSortWrapper) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
+func (w GetPostsInfosSortWrapper) Less(i, j int) bool { return w[i].TweetAmount < w[j].TweetAmount }
+
 func TestGetPostsInfos(t *testing.T) {
 	root, _ := html.Parse(strings.NewReader(TestBoardHTML))
 	b := pttifierLib.NewBoardCrawler(root)
 
-	expects := []*pttifierLib.BoardInfo{
+	expects := GetPostsInfosSortWrapper{
 		{
 			pttifierLib.BaseInfo{
 				URL:    "https://www.ptt.cc/bbs/LoL/M.1457622048.A.D80.html",
@@ -42,7 +49,7 @@ func TestGetPostsInfos(t *testing.T) {
 				Author: "[彩券]",
 				Date:   "3/10",
 			},
-			11,
+			12,
 		},
 		{
 			pttifierLib.BaseInfo{
@@ -83,6 +90,8 @@ func TestGetPostsInfos(t *testing.T) {
 	}
 
 	actuals := b.GetPostsInfos()
+	sort.Sort(GetPostsInfosSortWrapper(actuals))
+	sort.Sort(expects)
 
 	for i, expect := range expects {
 		actual := actuals[i]
