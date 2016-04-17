@@ -112,3 +112,14 @@ func TestGetPostsInfos(t *testing.T) {
 		}
 	}
 }
+
+func TestGetCurrPageLinkNum(t *testing.T) {
+	root, _ := html.Parse(strings.NewReader(TestBoardHTML))
+	b := pttifierLib.NewBoardCrawler(root)
+
+	expect := 4381
+	actual := b.GetCurrPageLinkNum()
+	if expect != actual {
+		t.Errorf("GetCurrPageLinkNum: expect-> %d, actual-> %d", expect, actual)
+	}
+}

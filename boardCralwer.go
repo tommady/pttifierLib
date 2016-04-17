@@ -2,6 +2,7 @@ package pttifierLib
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/yhat/scrape"
@@ -57,6 +58,20 @@ func (b *BoardCrawler) setErr(err error) {
 
 func (b *BoardCrawler) Err() error {
 	return b.err
+}
+
+func (b *BoardCrawler) GetCurrPageLinkNum() int {
+	strPreLink := b.getPageLink("上頁")
+	strNewestLink := b.getPageLink("最新")
+	strNewestLink = strings.TrimSuffix(strNewestLink, ".html")
+	strPreLink = strings.TrimPrefix(strPreLink, strNewestLink)
+	strPreLink = strings.TrimSuffix(strPreLink, ".html")
+	intPreLink, err := strconv.Atoi(strPreLink)
+	if err != nil {
+		return 0
+	}
+
+	return intPreLink + 1
 }
 
 func (b *BoardCrawler) GetPrevPageLink() string {
@@ -136,39 +151,26 @@ func (b *BoardCrawler) GetPostsInfos() (infos []*BoardInfo) {
 	}
 
 	articles := scrape.FindAll(b.rListNode, scrape.ByClass("r-ent"))
-	infoCh := make(chan *BoardInfo, len(articles))
 	for _, article := range articles {
-		go func(article *html.Node) {
-			b.skipThisArticle = false
+		b.skipThisArticle = false
 
-			title := b.getTitle(article)
-			author := b.getAuthor(article)
-			url := b.getURL(article)
-			date := b.getDate(article)
-			tweetAmount := b.getTweetAmount(article)
+		title := b.getTitle(article)
+		author := b.getAuthor(article)
+		url := b.getURL(article)
+		date := b.getDate(article)
+		tweetAmount := b.getTweetAmount(article)
 
-			if b.skipThisArticle {
-				infoCh <- nil
-				return
-			}
-
-			info := new(BoardInfo)
-			info.Title = title
-			info.URL = url
-			info.Author = author
-			info.Date = date
-			info.TweetAmount = tweetAmount
-			infoCh <- info
-		}(article)
-	}
-
-	for i := 0; i < len(articles); i++ {
-		select {
-		case info := <-infoCh:
-			if info != nil {
-				infos = append(infos, info)
-			}
+		if b.skipThisArticle {
+			continue
 		}
+
+		info := new(BoardInfo)
+		info.Title = title
+		info.URL = url
+		info.Author = author
+		info.Date = date
+		info.TweetAmount = tweetAmount
+		infos = append(infos, info)
 	}
 
 	return
