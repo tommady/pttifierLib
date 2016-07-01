@@ -101,7 +101,39 @@ func SetParserContentMatcher(matcher StrMatcher) RuleSetting {
 	}
 }
 
-func (p *Parser) Parsing(posts []*BoardInfoAndArticle) (results []*Result) {
+func (p *Parser) ParsingBoard(posts []*BoardInfo) (results []*Result) {
+	if posts == nil {
+		return
+	}
+	resultCh := make(chan *Result, len(posts))
+	for _, post := range posts {
+		go func(post *BoardInfo) {
+			if !p.compareTitle(post.Title) ||
+				!p.compareAuthor(post.Author) ||
+				!p.compareTweetAmount(post.TweetAmount) {
+				resultCh <- nil
+				return
+			}
+			resultCh <- &Result{
+				URL:    post.URL,
+				Title:  post.Title,
+				Author: post.Author,
+				Date:   post.Date,
+			}
+		}(post)
+	}
+	for i := 0; i < len(posts); i++ {
+		select {
+		case r := <-resultCh:
+			if r != nil {
+				results = append(results, r)
+			}
+		}
+	}
+	return results
+}
+
+func (p *Parser) ParsingAll(posts []*BoardInfoAndArticle) (results []*Result) {
 	if posts == nil {
 		return
 	}
