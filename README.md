@@ -41,12 +41,12 @@ func main() {
 		),
 	}
 
-	results := []*ptlib.Result{}
-	resultCh := make(chan []*ptlib.Result, len(parserList))
+	results := []*ptlib.BoardInfoAndArticle{}
+	resultCh := make(chan []*ptlib.BoardInfoAndArticle, len(parserList))
 	for _, parser := range parserList {
 		go func(parser *ptlib.Parser) {
-			results := parser.ParsingAll(posts)
-			resultCh <- results
+			rs := parser.ParsingAll(posts)
+			resultCh <- rs
 		}(parser)
 	}
 

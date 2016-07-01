@@ -5,7 +5,6 @@ import "strings"
 type StrMatcher func(s, chars string) bool
 type IntMatcher func(n, comparison int) bool
 type RuleSetting func(*Parser)
-type Result BaseInfo
 
 type TextRule struct {
 	Title       string
@@ -101,11 +100,11 @@ func SetParserContentMatcher(matcher StrMatcher) RuleSetting {
 	}
 }
 
-func (p *Parser) ParsingBoard(posts []*BoardInfo) (results []*Result) {
+func (p *Parser) ParsingBoard(posts []*BoardInfo) (results []*BoardInfo) {
 	if posts == nil {
 		return
 	}
-	resultCh := make(chan *Result, len(posts))
+	resultCh := make(chan *BoardInfo, len(posts))
 	for _, post := range posts {
 		go func(post *BoardInfo) {
 			if !p.compareTitle(post.Title) ||
@@ -114,12 +113,7 @@ func (p *Parser) ParsingBoard(posts []*BoardInfo) (results []*Result) {
 				resultCh <- nil
 				return
 			}
-			resultCh <- &Result{
-				URL:    post.URL,
-				Title:  post.Title,
-				Author: post.Author,
-				Date:   post.Date,
-			}
+			resultCh <- post
 		}(post)
 	}
 	for i := 0; i < len(posts); i++ {
@@ -133,12 +127,11 @@ func (p *Parser) ParsingBoard(posts []*BoardInfo) (results []*Result) {
 	return results
 }
 
-func (p *Parser) ParsingAll(posts []*BoardInfoAndArticle) (results []*Result) {
+func (p *Parser) ParsingAll(posts []*BoardInfoAndArticle) (results []*BoardInfoAndArticle) {
 	if posts == nil {
 		return
 	}
-
-	resultCh := make(chan *Result, len(posts))
+	resultCh := make(chan *BoardInfoAndArticle, len(posts))
 	for _, post := range posts {
 		go func(post *BoardInfoAndArticle) {
 			if !p.compareTitle(post.Title) ||
@@ -148,16 +141,9 @@ func (p *Parser) ParsingAll(posts []*BoardInfoAndArticle) (results []*Result) {
 				resultCh <- nil
 				return
 			}
-
-			resultCh <- &Result{
-				URL:    post.URL,
-				Title:  post.Title,
-				Author: post.Author,
-				Date:   post.Date,
-			}
+			resultCh <- post
 		}(post)
 	}
-
 	for i := 0; i < len(posts); i++ {
 		select {
 		case r := <-resultCh:
@@ -166,7 +152,6 @@ func (p *Parser) ParsingAll(posts []*BoardInfoAndArticle) (results []*Result) {
 			}
 		}
 	}
-
 	return results
 }
 
