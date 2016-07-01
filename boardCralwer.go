@@ -102,47 +102,32 @@ func (b *BoardCrawler) getPageLink(pageText string) (pageLink string) {
 	return
 }
 
-func (b *BoardCrawler) GetPostsInfosAndArticles() (infosAndArticles []*BoardInfoAndArticle) {
+func (b *BoardCrawler) GetPostsInfosAndArticles() []*BoardInfoAndArticle {
 	if b.err == ErrRListNodeNil {
-		return
+		return nil
 	}
-
 	infos := b.GetPostsInfos()
-	infoAndArticleCh := make(chan *BoardInfoAndArticle, len(infos))
+	infosAndArticles := []*BoardInfoAndArticle{}
 	for _, info := range infos {
-		go func(info *BoardInfo) {
-			post, err := GetNodeFromLink(info.URL)
-			if err != nil {
-				infoAndArticleCh <- nil
-				return
-			}
-
-			postCrawler := NewPostCrawler(post)
-			content := postCrawler.GetContent()
-			tweets := postCrawler.GetTweets()
-			if postCrawler.Err() != nil {
-				infoAndArticleCh <- nil
-				return
-			}
-
-			infoAndArticleCh <- &BoardInfoAndArticle{
-				BoardInfo: info,
-				Content:   content,
-				Tweets:    tweets,
-			}
-		}(info)
-	}
-
-	for i := 0; i < len(infos); i++ {
-		select {
-		case infoAndArticle := <-infoAndArticleCh:
-			if infoAndArticle != nil {
-				infosAndArticles = append(infosAndArticles, infoAndArticle)
-			}
+		post, err := GetNodeFromLink(info.URL)
+		if err != nil {
+			b.setErr(err)
+			return nil
 		}
+		postCrawler := NewPostCrawler(post)
+		content := postCrawler.GetContent()
+		tweets := postCrawler.GetTweets()
+		if postCrawler.Err() != nil {
+			b.setErr(err)
+			return nil
+		}
+		infosAndArticles = append(infosAndArticles, &BoardInfoAndArticle{
+			BoardInfo: info,
+			Content:   content,
+			Tweets:    tweets,
+		})
 	}
-
-	return
+	return infosAndArticles
 }
 
 func (b *BoardCrawler) GetPostsInfos() (infos []*BoardInfo) {
