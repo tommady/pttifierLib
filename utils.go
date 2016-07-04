@@ -19,7 +19,7 @@ const (
 
 var (
 	MaxReConnectTimes                   = 5
-	MaxReConnectDelayTime time.Duration = 5
+	MaxReConnectDelayTime time.Duration = 1
 )
 
 type BaseInfo struct {
@@ -47,12 +47,13 @@ func GetNodeFromLink(targetURL string) (*html.Node, error) {
 	if err != nil {
 		return nil, err
 	}
+	time.Sleep(time.Second * MaxReConnectDelayTime)
 
 	if res.StatusCode == http.StatusServiceUnavailable ||
 		res.StatusCode == http.StatusBadGateway ||
 		res.StatusCode == http.StatusGatewayTimeout {
 		for i := 0; i < MaxReConnectTimes; i++ {
-			time.Sleep(MaxReConnectDelayTime)
+			time.Sleep(time.Second * MaxReConnectDelayTime)
 			res, err = client.Do(req)
 			if err != nil {
 				return nil, err

@@ -136,14 +136,14 @@ func (b *BoardCrawler) GetPostsInfos() (infos []*BoardInfo) {
 	}
 
 	articles := scrape.FindAll(b.rListNode, scrape.ByClass("r-ent"))
-	for _, article := range articles {
+	for i := len(articles) - 1; i >= 0; i-- {
 		b.skipThisArticle = false
 
-		title := b.getTitle(article)
-		author := b.getAuthor(article)
-		url := b.getURL(article)
-		date := b.getDate(article)
-		tweetAmount := b.getTweetAmount(article)
+		title := b.getTitle(articles[i])
+		author := b.getAuthor(articles[i])
+		url := b.getURL(articles[i])
+		date := b.getDate(articles[i])
+		tweetAmount := b.getTweetAmount(articles[i])
 
 		if b.skipThisArticle {
 			continue
