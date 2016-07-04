@@ -12,13 +12,13 @@ import (
 
 type BoardInfoAndArticle struct {
 	*BoardInfo
-	Content string
-	Tweets  []*Tweet
+	Content string   `json:"content"`
+	Tweets  []*Tweet `json:"tweets"`
 }
 
 type BoardInfo struct {
 	BaseInfo
-	TweetAmount int
+	TweetAmount int `json:"tweet_amount"`
 }
 
 type BoardCrawler struct {

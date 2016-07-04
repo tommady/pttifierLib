@@ -20,14 +20,13 @@ const (
 var (
 	MaxReConnectTimes                   = 5
 	MaxReConnectDelayTime time.Duration = 5
-	ErrHttpStatusNotOk                  = errors.New("Http status is not OK")
 )
 
 type BaseInfo struct {
-	URL    string
-	Title  string
-	Author string
-	Date   string
+	URL    string `json:"url"`
+	Title  string `json:"title"`
+	Author string `json:"author"`
+	Date   string `json:"date"`
 }
 
 func WrapBoardPageLink(targetBoard, pageNum string) string {
@@ -65,7 +64,7 @@ func GetNodeFromLink(targetURL string) (*html.Node, error) {
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, ErrHttpStatusNotOk
+		return nil, errors.New(res.Status)
 	}
 
 	root, err := html.Parse(res.Body)
